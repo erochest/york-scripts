@@ -1,5 +1,5 @@
 
-build: YorkScripts
+build: data/bill-id.csv
 
 YorkScripts: cabal.sandbox.config YorkScripts.hs
 	cabal exec -- ghc --make YorkScripts.hs
