@@ -30,7 +30,9 @@ def main():
 
     with open(input_name) as fin, open(output_name, 'w') as fout:
         reader = csv.DictReader(fin)
-        writer = csv.DictWriter(fout, reader.fieldnames)
+        fieldnames = list(reader.fieldnames)
+        fieldnames.insert(2, 'BillID2')
+        writer = csv.DictWriter(fout, fieldnames)
 
         writer.writeheader()
         writer.writerows(set_billid2(row) for row in reader)

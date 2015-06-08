@@ -15,7 +15,7 @@ import           Data.Text.Lazy    (toStrict)
 
 -- key id
 -- bill id
--- bill id 2
+-- >>> bill id 2 <<<
 -- cong
 -- bill type
 -- bill no
@@ -40,9 +40,9 @@ import           Data.Text.Lazy    (toStrict)
 -- congress
 
 line :: [T.Text] -> [T.Text]
-line header@("KeyID":_)   = header
-line (keyId:billId:_:row) = keyId : billId : field billId : row
-line row                  = row
+line ("KeyID":"BillID":header) = "KeyID" : "BillID" : "BillID2" : header
+line (keyId:billId:row)        = keyId : billId : field billId : row
+line row                       = row
 
 field :: T.Text -> T.Text
 field = toStrict . format "{}{} ({})" . parseBillId . T.split (== '-')
