@@ -1,5 +1,8 @@
 
-build: data/bill-id.csv
+INPUT=data/Congressional_Bills.csv
+OUTPUT=data/Congressional_Bills_2.csv
+
+build: $(OUTPUT)
 
 YorkScripts: cabal.sandbox.config YorkScripts.hs
 	cabal exec -- ghc --make YorkScripts.hs
@@ -9,15 +12,16 @@ init: cabal.sandbox.config deps
 deps:
 	cabal install cassava text text-format conduit conduit-combinators conduit-extra cassava-conduit bytestring
 
-data/bill-id.csv: YorkScripts data/chisqr.csv
-	./YorkScripts < data/chisqr.csv > data/bill-id.csv
+$(OUTPUT): YorkScripts $(INPUT)
+	./YorkScripts < $(INPUT) > $(OUTPUT)
 
 cabal.sandbox.config:
 	cabal sandbox init
+	make deps
 
 clean:
 	rm -f *.o *.hi *.html
-	rm -f data/bill-id.csv
+	rm -f $(OUTPUT)
 
 distclean: clean
 	rm -f YorkScripts
