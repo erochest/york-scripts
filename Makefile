@@ -4,20 +4,19 @@ OUTPUT=data/Congressional_Bills_2.csv
 
 build: $(OUTPUT)
 
-YorkScripts: cabal.sandbox.config YorkScripts.hs
-	cabal exec -- ghc --make YorkScripts.hs
+YorkScripts: stack.yaml YorkScripts.hs
+	stack ghc --make YorkScripts.hs
 
-init: cabal.sandbox.config deps
+init: stack.yaml deps
 
 deps:
-	cabal install cassava text text-format conduit conduit-combinators conduit-extra cassava-conduit bytestring
+	stack install cassava text text-format conduit conduit-combinators conduit-extra cassava-conduit bytestring
 
 $(OUTPUT): YorkScripts $(INPUT)
 	./YorkScripts < $(INPUT) > $(OUTPUT)
 
-cabal.sandbox.config:
-	cabal sandbox init
-	make deps
+stack.yaml:
+	stack init --prefer-nightly
 
 clean:
 	rm -f *.o *.hi *.html
@@ -25,7 +24,7 @@ clean:
 
 distclean: clean
 	rm -f YorkScripts
-	cabal sandbox delete
+	stack clean
 
 %.html: *.lhs
 	pandoc --from markdown+lhs --to html5 --smart --standalone --output=$@ $<
