@@ -1,11 +1,13 @@
 
-INPUT=data/Congressional_Bills.csv
-OUTPUT=data/Congressional_Bills_2.csv
+SRC=$(shell find src -name '*.hs')
+BILLS_INPUT=data/Congressional_Bills.csv
+BILLS_OUTPUT=data/Congressional_Bills_2.csv
+ROLL_OUTPUT=data/roll-calls.csv
 
-build: $(OUTPUT)
 
-YorkScripts: stack.yaml YorkScripts.hs
-	stack ghc -- --make YorkScripts.hs
+all: init data test output
+
+data: roll-calls $(BILLS_INPUT)
 
 roll-calls:
 	mkdir roll-calls
@@ -22,27 +24,41 @@ roll-calls:
 	rsync -avz --delete --delete-excluded govtrack.us::govtrackdata/congress/112/votes roll-calls/112
 	rsync -avz --delete --delete-excluded govtrack.us::govtrackdata/congress/113/votes roll-calls/113
 
-init: stack.yaml deps
+init: stack.yaml
 
-deps:
-	stack install cassava text text-format conduit conduit-combinators conduit-extra cassava-conduit bytestring
+build:
+	stack build
 
-$(OUTPUT): YorkScripts $(INPUT)
-	./YorkScripts < $(INPUT) > $(OUTPUT)
+test:
+	stack test
+
+$(BILLS_OUTPUT): build $(BILLS_INPUT)
+	stack exec -- york-scripts < $(BILLS_INPUT) > $(BILLS_OUTPUT)
+
+$(ROLL_OUTPUT): build roll-calls
+	stack exec -- roll-calls roll
+
+output: $(BILLS_OUTPUT) $(ROLL_OUTPUT)
 
 stack.yaml:
-	stack new --prefer-nightly
+	stack init --prefer-nightly
+
+tags: ${SRC}
+	codex update
+
+hlint:
+	hlint *.hs src specs
+
+watch:
+	stack ghci
 
 clean:
 	rm -f *.o *.hi *.html
-	rm -f $(OUTPUT)
+	rm -f $(BILLS_OUTPUT)
+	codex cache clean
 
 distclean: clean
-	rm -f YorkScripts
 	rm -rf roll-calls
 	stack clean
 
-%.html: *.lhs
-	pandoc --from markdown+lhs --to html5 --smart --standalone --output=$@ $<
-
-.PHONY: init deps build clean distclean
+.PHONY: init build clean distclean hlint output
