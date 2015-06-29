@@ -5,7 +5,7 @@ OUTPUT=data/Congressional_Bills_2.csv
 build: $(OUTPUT)
 
 YorkScripts: stack.yaml YorkScripts.hs
-	stack ghc --make YorkScripts.hs
+	stack ghc -- --make YorkScripts.hs
 
 init: stack.yaml deps
 
@@ -16,7 +16,7 @@ $(OUTPUT): YorkScripts $(INPUT)
 	./YorkScripts < $(INPUT) > $(OUTPUT)
 
 stack.yaml:
-	stack init --prefer-nightly
+	stack new --prefer-nightly
 
 clean:
 	rm -f *.o *.hi *.html
