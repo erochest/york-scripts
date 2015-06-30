@@ -36,7 +36,7 @@ $(BILLS_OUTPUT): build $(BILLS_INPUT)
 	stack exec -- york-scripts < $(BILLS_INPUT) > $(BILLS_OUTPUT)
 
 $(ROLL_OUTPUT): build roll-calls
-	stack exec -- roll-calls roll
+	stack exec -- roll-calls roll-calls/
 
 output: $(BILLS_OUTPUT) $(ROLL_OUTPUT)
 
