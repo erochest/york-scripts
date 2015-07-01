@@ -1,5 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+
+-- | usage: roll-calls INPUT_DIR OUTPUT_FILE
 
 
 module Main where
@@ -12,17 +16,24 @@ import           Data.Aeson.Lens
 import           Data.Aeson.Types     (Parser)
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Csv             as Csv
 import           Data.Data
+import           Data.Either
 import           Data.Foldable
 import qualified Data.HashSet         as S
 import qualified Data.List            as L
+import           Data.Maybe
 import qualified Data.Text            as T
 import qualified Data.Text.IO         as TIO
 import           Data.Typeable
 import           GHC.Generics
+import           Options.Applicative  hiding (Parser, info)
+import qualified Options.Applicative  as O
 import           System.Directory
 import           System.Environment
 import           System.FilePath
+
+import           Debug.Trace
 
 
 data BillType
@@ -46,6 +57,16 @@ instance FromJSON BillType where
     parseJSON (String "sjres")   = pure SJRes
     parseJSON (String "sres")    = pure SRes
     parseJSON _                  = mzero
+
+instance Csv.ToField BillType where
+    toField HConRes = "hconres"
+    toField HJRes   = "hjres"
+    toField HR      = "hr"
+    toField HRes    = "hres"
+    toField S       = "s"
+    toField SConRes = "sconres"
+    toField SJRes   = "sjres"
+    toField SRes    = "sres"
 
 data Bill
         = Bill
@@ -77,14 +98,19 @@ data VoteCall
         , nos  :: ![Party]
         } deriving (Show, Eq, Typeable, Data)
 
+parties :: Value -> Parser [Party]
+parties = mapM parseJSON . (^.. _Array . traverse . key "party")
+
+firstKey :: [T.Text] -> Object -> Parser Value
+firstKey keys o = foldl' (step o) empty keys <|> pure (Array [])
+    where
+        step :: Object -> Parser Value -> T.Text -> Parser Value
+        step o p k = p <|> o .: k
+
 instance FromJSON VoteCall where
     parseJSON (Object o) =   Votes
-                         <$> (o .: "Aye" >>= parties)
-                         <*> (o .: "No"  >>= parties)
-                         where
-                             parties :: Value -> Parser [Party]
-                             parties = mapM parseJSON
-                                     . (^.. _Array . traverse . key "party")
+                         <$> (firstKey ["Aye", "Yea"] o >>= parties)
+                         <*> (firstKey ["No" , "Nay"] o >>= parties)
     parseJSON _          =   mzero
 
 data BillResult
@@ -135,6 +161,54 @@ data BillResult
         | ResolutionOfRatificationRejected
         | VetoOverridden
         deriving (Show, Eq, Typeable, Data)
+
+resultMetric :: BillResult -> Int
+resultMetric AgreedTo                              = 1
+resultMetric AmendmentAgreedTo                     = 1
+resultMetric AmendmentGermane                      = 1
+resultMetric AmendmentNotGermane                   = -1
+resultMetric AmendmentRejected                     = -1
+resultMetric BillDefeated                          = -1
+resultMetric BillPassed                            = 1
+resultMetric Boehner                               = 0
+resultMetric ClotureMotionAgreedTo                 = 1
+resultMetric ClotureMotionRejected                 = -1
+resultMetric ClotureOnTheMotionToProceedAgreedTo   = 1
+resultMetric ClotureOnTheMotionToProceedRejected   = -1
+resultMetric ConcurrentResolutionAgreedTo          = 1
+resultMetric ConcurrentResolutionRejected          = -1
+resultMetric ConferenceReportAgreedTo              = 1
+resultMetric DecisionOfChairNotSustained           = -1
+resultMetric DecisionOfChairSustained              = 1
+resultMetric Failed                                = -1
+resultMetric Guilty                                = -1
+resultMetric Hastert                               = 0
+resultMetric JointResolutionDefeated               = -1
+resultMetric JointResolutionPassed                 = 1
+resultMetric MotionAgreedTo                        = 1
+resultMetric MotionRejected                        = -1
+resultMetric MotionForAttendanceAgreedTo           = 1
+resultMetric MotionToAdjournAgreedTo               = 1
+resultMetric MotionToAdjournRejected               = -1
+resultMetric MotionToProceedAgreedTo               = 1
+resultMetric MotionToProceedRejected               = -1
+resultMetric MotionToRecommitRejected              = -1
+resultMetric MotionToReconsiderAgreedTo            = 1
+resultMetric MotionToReferRejected                 = -1
+resultMetric MotionToTableAgreedTo                 = 1
+resultMetric MotionToTableFailed                   = -1
+resultMetric MotionToTablemOtionToRecommitAgreedTo = 1
+resultMetric NominationConfirmed                   = 1
+resultMetric ObjectionNotSustained                 = 1
+resultMetric Passed                                = 1
+resultMetric Pelosi                                = 0
+resultMetric PointOfOrderNotSustained              = -1
+resultMetric PointOfOrderNotWellTaken              = -1
+resultMetric ResolutionAgreedTo                    = 1
+resultMetric ResolutionRejected                    = -1
+resultMetric ResolutionOfRatificationAgreedTo      = 1
+resultMetric ResolutionOfRatificationRejected      = -1
+resultMetric VetoOverridden                        = -1
 
 instance FromJSON BillResult where
     parseJSON (String "Agreed to") = pure AgreedTo
@@ -222,25 +296,60 @@ data BillSummary
         , sumResult   :: !Int
         } deriving (Show, Eq, Typeable, Data)
 
-summarizeCall :: RollCall -> BillSummary
-summarizeCall = undefined
+instance Csv.ToNamedRecord BillSummary where
+    toNamedRecord BillSum{..} =
+        Csv.namedRecord [ "congress" Csv..= sumCongress
+                        , "type"     Csv..= sumType
+                        , "bill#"    Csv..= sumNumber
+                        , "R yeas"   Csv..= sumRYes
+                        , "R nays"   Csv..= sumRNo
+                        , "D yeas"   Csv..= sumDYes
+                        , "D nays"   Csv..= sumDNo
+                        , "result"   Csv..= sumResult
+                        ]
 
+instance Csv.DefaultOrdered BillSummary where
+    headerOrder _ = Csv.header [ "congress"
+                               , "type"
+                               , "bill#"
+                               , "R yeas"
+                               , "R nays"
+                               , "D yeas"
+                               , "D nays"
+                               , "result"
+                               ]
+
+
+summarizeCall :: RollCall -> BillSummary
+summarizeCall Call{..} =
+    BillSum (congress bill) (number bill) (billType bill)
+            (length rYes) (length rNos) (length dYes) (length dNos)
+            (resultMetric result)
+    where
+        (rYes, dYes) = L.partition (==R) $ ayes votes
+        (rNos, dNos) = L.partition (==R) $ nos  votes
+
+decodeCall :: B.ByteString -> Maybe RollCall
+decodeCall = decode . BL.fromStrict
+
+decodeEitherCall :: B.ByteString -> Either String RollCall
+decodeEitherCall = eitherDecode' . BL.fromStrict
+
+info :: Show a => Bool -> String -> a -> a
+info False _   x = x
+info True  msg x = trace (msg ++ ": " ++ show x) x
 
 main :: IO ()
 main = do
-    [dirname] <- getArgs
-    files <- walk dirname
-    mapM_ TIO.putStrLn . L.sort . S.toList =<< foldlM step S.empty files
-    where
-        step :: S.HashSet T.Text -> FilePath -> IO (S.HashSet T.Text)
-        step s filename =
-            maybe s (foldl' (flip S.insert) s)
-                .   fmap (preview ( key "result"
-                                  . _String
-                                  ))
-                .   (decode :: BL.ByteString -> Maybe Value)
-                .   BL.fromStrict
-                <$> B.readFile filename
+    Options{..} <- execParser opts
+    BL.writeFile outputFile
+        .   Csv.encodeDefaultOrderedByName
+        .   map summarizeCall
+        .   rights
+        =<< mapM (\f -> fmap (info verbose ("OUTPUT " ++ f) . decodeEitherCall)
+                     $  B.readFile f
+                 )
+        =<< walk inputDir
 
 
 walk :: FilePath -> IO [FilePath]
@@ -255,7 +364,6 @@ walk dirname = do
         hidden ('.':_) = True
         hidden _       = False
 
-
 partitionM :: Monad m => (x -> m Bool) -> [x] -> m ([x], [x])
 partitionM _ [] = return ([], [])
 partitionM f (x:xs) = do
@@ -264,3 +372,24 @@ partitionM f (x:xs) = do
     return $ if result
                  then (x:ts, fs)
                  else (ts, x:fs)
+
+data Options
+        = Options
+        { inputDir   :: !FilePath
+        , outputFile :: !FilePath
+        , verbose    :: !Bool
+        } deriving (Show, Eq)
+
+opts' :: O.Parser Options
+opts' =   Options
+      <$> strArgument (metavar "INPUT_DIR"   <> help "The input directory.")
+      <*> strArgument (metavar "OUTPUT_FILE" <> help "The output file.")
+      <*> switch (  short 'v' <> long "verbose"
+                 <> help "Output extra debugging information.")
+
+opts :: ParserInfo Options
+opts = O.info (helper <*> opts')
+        (  fullDesc
+        <> progDesc "Process the roll call data."
+        <> header "roll-calls -- process the roll call data"
+        )
