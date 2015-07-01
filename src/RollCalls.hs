@@ -344,26 +344,14 @@ info True  msg x = trace (msg ++ ": " ++ show x) x
 main :: IO ()
 main = do
     Options{..} <- execParser opts
-    {-
-     - BL.writeFile outputFile
-     -     .   Csv.encodeDefaultOrderedByName
-     -     .   map summarizeCall
-     -     .   rights
-     -     =<< mapM (\f -> fmap (info verbose ("OUTPUT " ++ f) . decodeEitherCall)
-     -                  $  B.readFile f
-     -              )
-     -     =<< walk inputDir
-     -}
-    mapM_ TIO.putStrLn . L.sort . S.toList =<< foldM step S.empty =<< walk inputDir
-    where
-        step :: S.HashSet T.Text -> FilePath -> IO (S.HashSet T.Text)
-        step s filename =
-            maybe s (S.union s . S.fromList . M.keys)
-                .   join
-                .   fmap (^? key "votes" . _Object)
-                .   (decode :: BL.ByteString -> Maybe Value)
-                .   BL.fromStrict
-                <$> B.readFile filename
+    BL.writeFile outputFile
+        .   Csv.encodeDefaultOrderedByName
+        .   map summarizeCall
+        .   rights
+        =<< mapM (\f -> fmap (info verbose ("OUTPUT " ++ f) . decodeEitherCall)
+                     $  B.readFile f
+                 )
+        =<< walk inputDir
 
 
 walk :: FilePath -> IO [FilePath]
