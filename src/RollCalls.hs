@@ -341,6 +341,10 @@ info :: Show a => Bool -> String -> a -> a
 info False _   x = x
 info True  msg x = trace (msg ++ ": " ++ show x) x
 
+readDecode :: Bool -> FilePath -> IO (Either String RollCall)
+readDecode verbose filename =
+    info verbose ("OUTPUT " ++ filename) . decodeEitherCall <$> B.readFile filename
+
 main :: IO ()
 main = do
     Options{..} <- execParser opts
@@ -348,9 +352,7 @@ main = do
         .   Csv.encodeDefaultOrderedByName
         .   map summarizeCall
         .   rights
-        =<< mapM (\f -> fmap (info verbose ("OUTPUT " ++ f) . decodeEitherCall)
-                     $  B.readFile f
-                 )
+        =<< mapM (readDecode verbose)
         =<< walk inputDir
 
 
