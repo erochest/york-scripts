@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
@@ -10,6 +11,7 @@
 module Main where
 
 
+import           Control.Arrow        ((&&&))
 import           Control.Lens
 import           Control.Monad
 import           Data.Aeson
@@ -21,12 +23,16 @@ import qualified Data.Csv             as Csv
 import           Data.Data
 import           Data.Either
 import           Data.Foldable
+import           Data.Hashable
 import qualified Data.HashMap.Strict  as M
 import qualified Data.HashSet         as S
 import qualified Data.List            as L
 import           Data.Maybe
+import           Data.Monoid
+import           Data.Ord
 import qualified Data.Text            as T
 import qualified Data.Text.IO         as TIO
+import           Data.Time
 import           Data.Typeable
 import           GHC.Generics
 import           Options.Applicative  hiding (Parser, info)
@@ -47,7 +53,7 @@ data BillType
         | SConRes
         | SJRes
         | SRes
-        deriving (Show, Eq, Typeable, Data)
+        deriving (Show, Eq, Typeable, Data, Generic)
 
 instance FromJSON BillType where
     parseJSON (String "hconres") = pure HConRes
@@ -70,12 +76,14 @@ instance Csv.ToField BillType where
     toField SJRes   = "sjres"
     toField SRes    = "sres"
 
+instance Hashable BillType
+
 data Bill
         = Bill
         { congress :: !Int
         , number   :: !Int
         , billType :: !BillType
-        } deriving (Show, Eq, Typeable, Data)
+        } deriving (Show, Eq, Typeable, Data, Generic)
 
 instance FromJSON Bill where
     parseJSON (Object o) =   Bill
@@ -83,6 +91,8 @@ instance FromJSON Bill where
                          <*> o .: "number"
                          <*> o .: "type"
     parseJSON _          = mzero
+
+instance Hashable Bill
 
 data Party
         = D | R | I
@@ -274,17 +284,23 @@ instance FromJSON BillResult where
 
 data RollCall
         = Call
-        { bill   :: !Bill
-        , result :: !BillResult
-        , votes  :: !VoteCall
-        } deriving (Show, Eq, Typeable, Data)
+        { bill     :: !Bill
+        , callDate :: !ZonedTime
+        , result   :: !BillResult
+        , votes    :: !VoteCall
+        } deriving (Show, Typeable, Data)
 
 instance FromJSON RollCall where
     parseJSON (Object o) =   Call
                          <$> o .: "bill"
+                         <*> o .: "date"
                          <*> o .: "result"
                          <*> o .: "votes"
     parseJSON _          =   mzero
+
+type BillKey       = (Int, Int)
+type RollCallIndex = M.HashMap BillKey [RollCall]
+type RollCallLast  = M.HashMap BillKey (Last RollCall)
 
 data BillSummary
         = BillSum
@@ -345,12 +361,27 @@ readDecode :: Bool -> FilePath -> IO (Either String RollCall)
 readDecode verbose filename =
     info verbose ("OUTPUT " ++ filename) . decodeEitherCall <$> B.readFile filename
 
+indexByBill :: Foldable t => t RollCall -> RollCallIndex
+indexByBill = foldl' step M.empty
+    where
+        step i rc = M.insertWith (++) (congress &&& number $ bill rc) [rc] i
+
+getLastRollCall :: RollCallIndex -> RollCallLast
+getLastRollCall = fmap (foldMap (Last . Just) . sortRollCalls)
+
+sortRollCalls :: [RollCall] -> [RollCall]
+sortRollCalls = L.sortBy (comparing (zonedTimeToUTC . callDate))
+
 main :: IO ()
 main = do
     Options{..} <- execParser opts
     BL.writeFile outputFile
         .   Csv.encodeDefaultOrderedByName
         .   map summarizeCall
+        .   mapMaybe getLast
+        .   M.elems
+        .   getLastRollCall
+        .   indexByBill
         .   rights
         =<< mapM (readDecode verbose)
         =<< walk inputDir
