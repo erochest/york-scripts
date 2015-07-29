@@ -53,7 +53,7 @@ hlint:
 	hlint *.hs src specs
 
 watch:
-	stack ghci
+	ghcid --command="stack ghci"
 
 clean:
 	rm -f *.o *.hi *.html
