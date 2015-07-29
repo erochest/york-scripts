@@ -5,8 +5,6 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 
--- | usage: roll-calls INPUT_DIR OUTPUT_FILE
-
 
 module Main where
 -- module RollCalls where
@@ -41,45 +39,70 @@ import           System.FilePath
 import           Debug.Trace
 
 
+data Chamber
+        = Senate
+        | House
+        deriving (Show, Eq, Typeable, Data, Generic)
+
+instance FromJSON Chamber where
+    parseJSON (String chamber)
+        | T.null chamber        = mzero
+        | T.head chamber == 'h' = pure House
+        | T.head chamber == 's' = pure Senate
+        | otherwise             = mzero
+
+instance Csv.ToField Chamber where
+    toField Senate = "s"
+    toField House  = "h"
+
+instance Hashable Chamber
+
 data BillType
-        = HConRes
-        | HJRes
-        | HR
-        | HRes
-        | S
-        | SConRes
-        | SJRes
-        | SRes
+        = PlainBill
+        | ConRes
+        | JRes
+        | Res
         deriving (Show, Eq, Typeable, Data, Generic)
 
 instance FromJSON BillType where
-    parseJSON (String "hconres") = pure HConRes
-    parseJSON (String "hjres")   = pure HJRes
-    parseJSON (String "hr")      = pure HR
-    parseJSON (String "hres")    = pure HRes
-    parseJSON (String "s")       = pure S
-    parseJSON (String "sconres") = pure SConRes
-    parseJSON (String "sjres")   = pure SJRes
-    parseJSON (String "sres")    = pure SRes
-    parseJSON _                  = mzero
+    parseJSON (String "hr") = pure PlainBill
+    parseJSON (String "s")  = pure PlainBill
+    parseJSON (String billType)
+        | T.null billType             = mzero
+        | T.tail billType == "conres" = pure ConRes
+        | T.tail billType == "jres"   = pure JRes
+        | T.tail billType == "res"    = pure Res
+        | otherwise                   = mzero
 
 instance Csv.ToField BillType where
-    toField HConRes = "hconres"
-    toField HJRes   = "hjres"
-    toField HR      = "hr"
-    toField HRes    = "hres"
-    toField S       = "s"
-    toField SConRes = "sconres"
-    toField SJRes   = "sjres"
-    toField SRes    = "sres"
+    toField PlainBill = ""
+    toField ConRes    = "conres"
+    toField JRes      = "jres"
+    toField Res       = "res"
 
 instance Hashable BillType
+
+data BillInfo
+        = BillInfo
+        { billChamber  :: !Chamber
+        , billInfoType :: !BillType
+        } deriving (Show, Eq, Typeable, Data, Generic)
+
+instance FromJSON BillInfo where
+    parseJSON json = BillInfo <$> parseJSON json <*> parseJSON json
+
+instance Csv.ToField BillInfo where
+    toField (BillInfo Senate PlainBill) = "s"
+    toField (BillInfo House  PlainBill) = "hr"
+    toField (BillInfo c      t)         = Csv.toField c <> Csv.toField t
+
+instance Hashable BillInfo
 
 data Bill
         = Bill
         { congress :: !Int
         , number   :: !Int
-        , billType :: !BillType
+        , billInfo :: !BillInfo
         } deriving (Show, Eq, Typeable, Data, Generic)
 
 instance FromJSON Bill where
@@ -295,7 +318,7 @@ instance FromJSON RollCall where
                          <*> o .: "votes"
     parseJSON _          =   mzero
 
-type BillKey       = (Int, Int)
+type BillKey       = (Int, Int, Chamber)
 type RollCallIndex = M.HashMap BillKey [RollCall]
 type RollCallLast  = M.HashMap BillKey (Last RollCall)
 
@@ -303,7 +326,7 @@ data BillSummary
         = BillSum
         { sumCongress :: !Int
         , sumNumber   :: !Int
-        , sumType     :: !BillType
+        , sumInfo     :: !BillInfo
         , sumRYes     :: !Int
         , sumRNo      :: !Int
         , sumDYes     :: !Int
@@ -314,7 +337,8 @@ data BillSummary
 instance Csv.ToNamedRecord BillSummary where
     toNamedRecord BillSum{..} =
         Csv.namedRecord [ "congress" Csv..= sumCongress
-                        , "type"     Csv..= sumType
+                        , "chamber"  Csv..= billChamber sumInfo
+                        , "type"     Csv..= sumInfo
                         , "bill#"    Csv..= sumNumber
                         , "R yeas"   Csv..= sumRYes
                         , "R nays"   Csv..= sumRNo
@@ -325,6 +349,7 @@ instance Csv.ToNamedRecord BillSummary where
 
 instance Csv.DefaultOrdered BillSummary where
     headerOrder _ = Csv.header [ "congress"
+                               , "chamber"
                                , "type"
                                , "bill#"
                                , "R yeas"
@@ -337,7 +362,7 @@ instance Csv.DefaultOrdered BillSummary where
 
 summarizeCall :: RollCall -> BillSummary
 summarizeCall Call{..} =
-    BillSum (congress bill) (number bill) (billType bill)
+    BillSum (congress bill) (number bill) (billInfo bill)
             (length rYes) (length rNos) (length dYes) (length dNos)
             (resultMetric result)
     where
@@ -361,7 +386,10 @@ readDecode verbose filename =
 indexByBill :: Foldable t => t RollCall -> RollCallIndex
 indexByBill = foldl' step M.empty
     where
-        step i rc = M.insertWith (++) (congress &&& number $ bill rc) [rc] i
+        step i rc = M.insertWith (++) (billKey $ bill rc) [rc] i
+
+billKey :: Bill -> BillKey
+billKey Bill{..} = (congress, number, billChamber billInfo)
 
 getLastRollCall :: RollCallIndex -> RollCallLast
 getLastRollCall = fmap (foldMap (Last . Just) . sortRollCalls)
