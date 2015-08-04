@@ -22,12 +22,15 @@ import qualified Data.Csv             as Csv
 import           Data.Data
 import           Data.Either
 import           Data.Foldable
+import           Data.Function
 import           Data.Hashable
 import qualified Data.HashMap.Strict  as M
 import qualified Data.List            as L
+import qualified Data.List.NonEmpty   as NE
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
+import           Data.Semigroup
 import qualified Data.Text            as T
 import           Data.Time
 import           GHC.Generics
@@ -37,6 +40,8 @@ import           System.Directory
 import           System.FilePath
 
 import           Debug.Trace
+
+import Types
 
 
 data Chamber
@@ -94,7 +99,7 @@ instance FromJSON BillInfo where
 instance Csv.ToField BillInfo where
     toField (BillInfo Senate PlainBill) = "s"
     toField (BillInfo House  PlainBill) = "hr"
-    toField (BillInfo c      t)         = Csv.toField c <> Csv.toField t
+    toField (BillInfo c      t)         = Csv.toField c `mappend` Csv.toField t
 
 instance Hashable BillInfo
 
@@ -318,9 +323,18 @@ instance FromJSON RollCall where
                          <*> o .: "votes"
     parseJSON _          =   mzero
 
+instance Ord RollCall where
+    compare = compare `on` (zonedTimeToUTC . callDate)
+
+instance Eq RollCall where
+    a == b =  bill a == bill b
+           && zonedTimeToUTC (callDate a) == zonedTimeToUTC (callDate b)
+           && result a == result b
+           && votes a == votes b
+
 type BillKey       = (Int, Int, Chamber)
 type RollCallIndex = M.HashMap BillKey [RollCall]
-type RollCallLast  = M.HashMap BillKey (Last RollCall)
+type RollCallLast  = M.HashMap BillKey (Max RollCall)
 
 data BillSummary
         = BillSum
@@ -392,23 +406,19 @@ billKey :: Bill -> BillKey
 billKey Bill{..} = (congress, number, billChamber billInfo)
 
 getLastRollCall :: RollCallIndex -> RollCallLast
-getLastRollCall = fmap (foldMap (Last . Just) . sortRollCalls)
-
-sortRollCalls :: [RollCall] -> [RollCall]
-sortRollCalls = L.sortBy (comparing (zonedTimeToUTC . callDate))
+getLastRollCall = fmap (sconcat . fmap Max . NE.fromList) . M.filter (not . L.null)
 
 main :: IO ()
 main = do
     Options{..} <- execParser opts
     BL.writeFile outputFile
         .   Csv.encodeDefaultOrderedByName
-        .   map summarizeCall
-        .   mapMaybe getLast
+        .   map (summarizeCall . getMax)
         .   M.elems
         .   getLastRollCall
         .   indexByBill
         .   rights
-        =<< mapM (readDecode verbose)
+        =<< mapM (readDecode verbose) . filter (".json" `L.isSuffixOf`)
         =<< walk inputDir
 
 
@@ -442,14 +452,14 @@ data Options
 
 opts' :: O.Parser Options
 opts' =   Options
-      <$> strArgument (metavar "INPUT_DIR"   <> help "The input directory.")
-      <*> strArgument (metavar "OUTPUT_FILE" <> help "The output file.")
-      <*> switch (  short 'v' <> long "verbose"
-                 <> help "Output extra debugging information.")
+      <$> strArgument (metavar "INPUT_DIR"   `mappend` help "The input directory.")
+      <*> strArgument (metavar "OUTPUT_FILE" `mappend` help "The output file.")
+      <*> switch (  short 'v' `mappend` long "verbose"
+                 `mappend` help "Output extra debugging information.")
 
 opts :: ParserInfo Options
 opts = O.info (helper <*> opts')
         (  fullDesc
-        <> progDesc "Process the roll call data."
-        <> header "roll-calls -- process the roll call data"
+        `mappend` progDesc "Process the roll call data."
+        `mappend` header "roll-calls -- process the roll call data"
         )
