@@ -1,4 +1,4 @@
 :set -fwarn-unused-binds -fwarn-unused-imports
 :set -isrc
 :set -XOverloadedStrings
-:load Types Utils
+:load Data Parsing Types Utils

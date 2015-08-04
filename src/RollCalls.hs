@@ -5,21 +5,16 @@
 
 
 module Main where
--- module RollCalls where
 
 
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv             as Csv
-import           Data.Either
 import qualified Data.HashMap.Strict  as M
-import qualified Data.List            as L
 import           Data.Semigroup
-import           Options.Applicative  hiding (Parser, info)
-import qualified Options.Applicative  as O
+import           Options.Applicative
 
 import           Data
 import           Parsing
-import           Utils
 
 
 main :: IO ()
@@ -31,9 +26,7 @@ main = do
         .   M.elems
         .   getLastRollCall
         .   indexByBill
-        .   rights
-        =<< mapM (readDecode verbose) . filter (".json" `L.isSuffixOf`)
-        =<< walk inputDir
+        =<< readDecodeDir verbose inputDir
 
 
 data Options
@@ -43,7 +36,7 @@ data Options
         , verbose    :: !Bool
         } deriving (Show, Eq)
 
-opts' :: O.Parser Options
+opts' :: Parser Options
 opts' =   Options
       <$> strArgument (metavar "INPUT_DIR"   `mappend` help "The input directory.")
       <*> strArgument (metavar "OUTPUT_FILE" `mappend` help "The output file.")
@@ -51,7 +44,7 @@ opts' =   Options
                  `mappend` help "Output extra debugging information.")
 
 opts :: ParserInfo Options
-opts = O.info (helper <*> opts')
+opts = info (helper <*> opts')
         (  fullDesc
         `mappend` progDesc "Process the roll call data."
         `mappend` header "roll-calls -- process the roll call data"
