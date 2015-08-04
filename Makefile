@@ -4,6 +4,9 @@ BILLS_INPUT=data/Congressional_Bills.csv
 BILLS_OUTPUT=data/Congressional_Bills_2.csv
 ROLL_OUTPUT=data/roll-calls.csv
 
+QDIR=tmp-data
+QSESSION=108
+QBILL=1
 
 all: init data test output
 
@@ -27,10 +30,23 @@ roll-calls:
 init: stack.yaml
 
 build:
-	stack build
+	stack build --pedantic
 
 test:
 	stack test
+
+quarantine: build
+	stack install
+	-rm -rf tmp-data
+	for dn in `find roll-calls/$(QSESSION) -name [hs]$(QBILL)`; \
+		do \
+		echo $$dn; \
+		dest=$(QDIR)/$$dn; \
+		mkdir -p $$dest; \
+		cp -r $$dn $$dest; \
+		done
+	stack exec -- roll-calls --verbose $(QDIR)/roll-calls $(QDIR)/q.csv
+	tree $(QDIR)
 
 $(BILLS_OUTPUT): build $(BILLS_INPUT)
 	stack exec -- york-scripts < $(BILLS_INPUT) > $(BILLS_OUTPUT)
