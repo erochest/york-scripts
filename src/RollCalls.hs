@@ -26,6 +26,7 @@ main = do
         .   M.elems
         .   getLastRollCall
         .   indexByBill
+        .   filterCategories
         =<< readDecodeDir verbose inputDir
 
 

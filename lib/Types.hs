@@ -26,6 +26,58 @@ import           Data.Time
 import           GHC.Generics
 
 
+data Category
+        = Amendment
+        | PassageSuspension
+        | Passage
+        | Procedural
+        | Cloture
+        | Recommit
+        | Nomination
+        | Unknown
+        | Quorum
+        | VetoOverride
+        | Impeachment
+        | Leadership
+        | Treaty
+        | Conviction
+        deriving (Eq, Show, Generic, Data, Typeable)
+
+instance Hashable Category
+
+instance FromJSON Category where
+    parseJSON (String "amendment")          = pure Amendment
+    parseJSON (String "passage-suspension") = pure PassageSuspension
+    parseJSON (String "passage")            = pure Passage
+    parseJSON (String "procedural")         = pure Procedural
+    parseJSON (String "cloture")            = pure Cloture
+    parseJSON (String "recommit")           = pure Recommit
+    parseJSON (String "nomination")         = pure Nomination
+    parseJSON (String "unknown")            = pure Unknown
+    parseJSON (String "quorum")             = pure Quorum
+    parseJSON (String "veto-override")      = pure VetoOverride
+    parseJSON (String "impeachment")        = pure Impeachment
+    parseJSON (String "leadership")         = pure Leadership
+    parseJSON (String "treaty")             = pure Treaty
+    parseJSON (String "conviction")         = pure Conviction
+    parseJSON _                             = mzero
+
+instance Csv.ToField Category where
+    toField Amendment         = "amendment"
+    toField PassageSuspension = "passage-suspension"
+    toField Passage           = "passage"
+    toField Procedural        = "procedural"
+    toField Cloture           = "cloture"
+    toField Recommit          = "recommit"
+    toField Nomination        = "nomination"
+    toField Unknown           = "unknown"
+    toField Quorum            = "quorum"
+    toField VetoOverride      = "veto-override"
+    toField Impeachment       = "impeachment"
+    toField Leadership        = "leadership"
+    toField Treaty            = "treaty"
+    toField Conviction        = "conviction"
+
 data Chamber
         = Senate
         | House
@@ -297,6 +349,7 @@ data RollCall
         , callDate :: !ZonedTime
         , result   :: !BillResult
         , votes    :: !VoteCall
+        , category :: !Category
         } deriving (Show, Typeable, Data)
 
 instance FromJSON RollCall where
@@ -305,6 +358,7 @@ instance FromJSON RollCall where
                          <*> o .: "date"
                          <*> o .: "result"
                          <*> o .: "votes"
+                         <*> o .: "category"
     parseJSON _          =   mzero
 
 instance Ord RollCall where
@@ -324,6 +378,7 @@ data BillSummary
         = BillSum
         { sumCongress :: !Int
         , sumNumber   :: !Int
+        , sumCategory :: !Category
         , sumInfo     :: !BillInfo
         , sumRYes     :: !Int
         , sumRNo      :: !Int
@@ -338,6 +393,7 @@ instance Csv.ToNamedRecord BillSummary where
                         , "chamber"  Csv..= billChamber sumInfo
                         , "type"     Csv..= sumInfo
                         , "bill#"    Csv..= sumNumber
+                        , "category" Csv..= sumCategory
                         , "R yeas"   Csv..= sumRYes
                         , "R nays"   Csv..= sumRNo
                         , "D yeas"   Csv..= sumDYes
@@ -350,10 +406,10 @@ instance Csv.DefaultOrdered BillSummary where
                                , "chamber"
                                , "type"
                                , "bill#"
+                               , "category"
                                , "R yeas"
                                , "R nays"
                                , "D yeas"
                                , "D nays"
                                , "result"
                                ]
-
