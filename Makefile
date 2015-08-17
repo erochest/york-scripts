@@ -52,10 +52,10 @@ $(BILLS_OUTPUT): build $(BILLS_INPUT)
 	stack exec -- york-scripts bill-id < $(BILLS_INPUT) > $(BILLS_OUTPUT)
 
 $(ROLL_OUTPUT): build roll-calls
-	stack exec -- roll-calls roll-calls/ $(ROLL_OUTPUT)
+	stack exec -- york-scripts roll-call roll-calls/ $(ROLL_OUTPUT)
 
 data/hr743.csv: build roll-calls
-	stack exec -- roll-calls --verbose hr743/ data/hr743.csv
+	stack exec -- york-scripts roll-call --verbose hr743/ data/hr743.csv
 
 output: $(BILLS_OUTPUT) $(ROLL_OUTPUT)
 

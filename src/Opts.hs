@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 
 module Opts
@@ -11,11 +12,22 @@ import           Options.Applicative
 
 data Options
         = BillId
-        {
-        } deriving (Show, Eq)
+        | RollCall { inputDir   :: !FilePath
+                   , outputFile :: !FilePath
+                   , verbose    :: !Bool
+                   }
+        deriving (Show, Eq)
 
 billIdParser :: Parser Options
 billIdParser = pure BillId
+
+rollCallParser :: Parser Options
+rollCallParser =
+        RollCall
+    <$> strArgument (metavar "INPUT_DIR"   <> help "The input directory.")
+    <*> strArgument (metavar "OUTPUT_FILE" <> help "The output file.")
+    <*> switch (  short 'v' <> long "verbose"
+               <> help "Output extra debugging information.")
 
 opts' :: Parser Options
 opts' =
@@ -24,6 +36,10 @@ opts' =
                                    (  fullDesc
                                    <> progDesc "This operates on STDIN/STDOUT."
                                    <> header "york-scripts bill-id -- generate full bill id"))
+        <> command "roll-call" (info (helper <*> rollCallParser)
+                                      (  fullDesc
+                                      <> progDesc "Process the roll call data."
+                                      <> header "york-scripts roll-calls"))
         )
 
 opts :: ParserInfo Options

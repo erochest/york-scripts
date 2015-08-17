@@ -58,20 +58,6 @@ executable york-scripts
   hs-source-dirs:      src
   default-language:    Haskell2010
 
-executable roll-calls
-  main-is:             RollCalls.hs
-  -- other-modules:       Types
-  -- other-extensions:    
-  build-depends:       base                 >= 4.8  && <5
-                     , york-scripts
-                     , bytestring           >= 0.10 && < 0.12
-                     , cassava              >= 0.4  && < 0.5
-                     , optparse-applicative >= 0.11 && < 0.12
-                     , semigroups           >= 0.16 && < 0.17
-                     , unordered-containers >= 0.2  && < 0.3
-  hs-source-dirs:      src
-  default-language:    Haskell2010
-
 executable call-data
   main-is:             CallData.hs
   -- other-modules:       Types
