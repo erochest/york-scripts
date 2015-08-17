@@ -16,6 +16,8 @@ data Options
                    , outputFile :: !FilePath
                    , verbose    :: !Bool
                    }
+        | CallData { inputDir   :: !FilePath
+                   }
         deriving (Show, Eq)
 
 billIdParser :: Parser Options
@@ -29,6 +31,10 @@ rollCallParser =
     <*> switch (  short 'v' <> long "verbose"
                <> help "Output extra debugging information.")
 
+callDataParser :: Parser Options
+callDataParser =
+    CallData <$> strArgument (metavar "INPUT_DIR" <> help "The input directory.")
+
 opts' :: Parser Options
 opts' =
     subparser
@@ -40,6 +46,10 @@ opts' =
                                       (  fullDesc
                                       <> progDesc "Process the roll call data."
                                       <> header "york-scripts roll-calls"))
+        <> command "call-data" (info (helper <*> callDataParser)
+                                     (  fullDesc
+                                     <> progDesc "Summarize a single field from the roll call data."
+                                     <> header "york-scripts call-data"))
         )
 
 opts :: ParserInfo Options

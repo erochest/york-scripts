@@ -6,20 +6,33 @@ module Main where
 
 
 import           Conduit
+import           Data.Hashable
 import           Control.Exception
+import           Control.Lens
+import           Control.Monad
+import           Data.Aeson
+import qualified Data.Aeson           as A
+import           Data.Aeson.Lens
+import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Csv
 import qualified Data.Csv             as Csv
 import           Data.Csv.Conduit
+import           Data.Foldable
 import qualified Data.HashMap.Strict  as M
+import qualified Data.List            as L
+import           Data.Maybe
+import           Data.Ord
 import           Data.Semigroup
 import qualified Data.Text            as T
 import           Data.Text.Format
+import qualified Data.Text.Format     as F
 import           Data.Text.Lazy       (toStrict)
 
 import           Data
 import           Opts
 import           Parsing
+import           Utils                hiding (info)
 
 
 main :: IO ()
@@ -42,6 +55,15 @@ yorkScripts RollCall{..} =
         .   indexByBill
         .   filterCategories
         =<< readDecodeDir verbose inputDir
+
+yorkScripts CallData{..} =
+    mapM_ (F.print "{} {}\n" . bimap (F.left 20 ' ') (F.right 5 ' '))
+        .   L.sortBy (comparing (Down . snd))
+        .   M.toList
+        .   frequencies
+        .   mapMaybe (join . fmap category . A.decode . BL.fromStrict)
+        =<< mapM B.readFile
+        =<< walk inputDir
 
 -- key id
 -- bill id
@@ -84,3 +106,11 @@ parseBillId _ = ("ERROR", "", "")
 liftError :: CsvParseError -> IOException
 liftError (CsvParseError _ _)  = undefined
 liftError (IncrementalError _) = undefined
+
+category :: Value -> Maybe T.Text
+category = preview (key "category" . _String)
+
+frequencies :: (Hashable k, Eq k, Traversable t) => t k -> M.HashMap k Int
+frequencies = foldl' step M.empty
+    where
+        step m k = M.insertWith (+) k 1 m

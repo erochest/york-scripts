@@ -44,12 +44,17 @@ executable york-scripts
   -- other-extensions:    
   build-depends:       base                 >= 4.8  && <5
                      , york-scripts
+                     , aeson                >= 0.8  && < 0.9
+                     , bifunctors           >= 4.2  && < 4.3
                      , bytestring           >= 0.10 && < 0.12
                      , cassava              >= 0.4  && < 0.5
                      , cassava-conduit      >= 0.2  && < 0.4
                      , conduit              >= 1.2  && < 1.4
                      , conduit-combinators  >= 1.0  && < 1.1
                      , conduit-extra        >= 1.1  && < 1.2
+                     , hashable             >= 1.2  && < 1.3
+                     , lens                 >= 4.9  && < 4.10
+                     , lens-aeson           >= 1.0  && < 1.1
                      , optparse-applicative >= 0.11 && < 0.12
                      , semigroups           >= 0.16 && < 0.17
                      , text                 >= 1.2  && < 1.3
