@@ -12,6 +12,19 @@ import qualified Data.Text         as T
 import           Data.Text.Format
 import           Data.Text.Lazy    (toStrict)
 
+import           Opts
+
+
+main :: IO ()
+main = parseOpts >>= yorkScripts
+
+yorkScripts :: Options -> IO ()
+yorkScripts BillId =
+    runResourceT $  stdinC
+                 $= fromCsvLiftError liftError defaultDecodeOptions NoHeader
+                 $= mapC line
+                 $$ toCsv defaultEncodeOptions
+                 =$ stdoutC
 
 -- key id
 -- bill id
@@ -50,13 +63,6 @@ field = toStrict . format "{}{} ({})" . parseBillId . T.split (== '-')
 parseBillId :: [T.Text] -> (T.Text, T.Text, T.Text)
 parseBillId (session:house:bill:_) = (T.take 1 house, bill, session)
 parseBillId _ = ("ERROR", "", "")
-
-main :: IO ()
-main = runResourceT $  stdinC
-                    $= fromCsvLiftError liftError defaultDecodeOptions NoHeader
-                    $= mapC line
-                    $$ toCsv defaultEncodeOptions
-                    =$ stdoutC
 
 liftError :: CsvParseError -> IOException
 liftError (CsvParseError _ msg)  = undefined

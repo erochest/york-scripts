@@ -49,7 +49,7 @@ quarantine: build
 	tree $(QDIR)
 
 $(BILLS_OUTPUT): build $(BILLS_INPUT)
-	stack exec -- york-scripts < $(BILLS_INPUT) > $(BILLS_OUTPUT)
+	stack exec -- york-scripts bill-id < $(BILLS_INPUT) > $(BILLS_OUTPUT)
 
 $(ROLL_OUTPUT): build roll-calls
 	stack exec -- roll-calls roll-calls/ $(ROLL_OUTPUT)
