@@ -20,6 +20,7 @@ keepCategories = [ PassageSuspension
                  , Passage
                  , Cloture
                  , VetoOverride
+                 -- , Procedural
                  ]
 
 filterCategories :: [RollCall] -> [RollCall]

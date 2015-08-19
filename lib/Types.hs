@@ -10,10 +10,9 @@ module Types where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad
 import           Data.Aeson
 import           Data.Aeson.Lens
-import           Data.Aeson.Types    (Parser)
+import           Data.Aeson.Types    (Parser, modifyFailure)
 import qualified Data.Csv            as Csv
 import           Data.Data
 import           Data.Foldable
@@ -60,7 +59,7 @@ instance FromJSON Category where
     parseJSON (String "leadership")         = pure Leadership
     parseJSON (String "treaty")             = pure Treaty
     parseJSON (String "conviction")         = pure Conviction
-    parseJSON _                             = mzero
+    parseJSON x                             = fail $ "Invalid category: " ++ show x
 
 instance Csv.ToField Category where
     toField Amendment         = "amendment"
@@ -85,11 +84,11 @@ data Chamber
 
 instance FromJSON Chamber where
     parseJSON (String chamber)
-        | T.null chamber        = mzero
+        | T.null chamber        = fail "empty chamber"
         | T.head chamber == 'h' = pure House
         | T.head chamber == 's' = pure Senate
-        | otherwise             = mzero
-    parseJSON _ = mzero
+        | otherwise             = fail $ "Invalid chamber: " ++ T.unpack chamber
+    parseJSON x = fail $ "Invalid chamber: " ++ show x
 
 instance Csv.ToField Chamber where
     toField Senate = "s"
@@ -108,12 +107,12 @@ instance FromJSON BillType where
     parseJSON (String "hr") = pure PlainBill
     parseJSON (String "s")  = pure PlainBill
     parseJSON (String billType)
-        | T.null billType             = mzero
+        | T.null billType             = fail "empty bill type"
         | T.tail billType == "conres" = pure ConRes
         | T.tail billType == "jres"   = pure JRes
         | T.tail billType == "res"    = pure Res
-        | otherwise                   = mzero
-    parseJSON _ = mzero
+        | otherwise                   = fail $ "invalid bill type: " ++ T.unpack billType
+    parseJSON x = fail $ "invalid bill type: " ++ show x
 
 instance Csv.ToField BillType where
     toField PlainBill = ""
@@ -130,7 +129,8 @@ data BillInfo
         } deriving (Show, Eq, Typeable, Data, Generic)
 
 instance FromJSON BillInfo where
-    parseJSON jsn = BillInfo <$> parseJSON jsn <*> parseJSON jsn
+    parseJSON jsn = modifyFailure ("Invalid bill-info: " ++)
+                  $ BillInfo <$> parseJSON jsn <*> parseJSON jsn
 
 instance Csv.ToField BillInfo where
     toField (BillInfo Senate PlainBill) = "s"
@@ -151,7 +151,7 @@ instance FromJSON Bill where
                          <$> o .: "congress"
                          <*> o .: "number"
                          <*> o .: "type"
-    parseJSON _          = mzero
+    parseJSON x          = fail $ "invalid bill: " ++ show x
 
 instance Hashable Bill
 
@@ -160,10 +160,11 @@ data Party
         deriving (Show, Eq, Typeable, Data)
 
 instance FromJSON Party where
-    parseJSON (String "D") = pure D
-    parseJSON (String "R") = pure R
-    parseJSON (String "I") = pure I
-    parseJSON _            = mzero
+    parseJSON (String "D")  = pure D
+    parseJSON (String "R")  = pure R
+    parseJSON (String "I")  = pure I
+    parseJSON (String "ID") = pure I
+    parseJSON x             = fail $ "invalid party: " ++ show x
 
 data VoteCall
         = Votes
@@ -182,9 +183,9 @@ firstKey keys o = foldl' (step o) empty keys <|> pure (Array [])
 
 instance FromJSON VoteCall where
     parseJSON (Object o) =   Votes
-                         <$> (firstKey ["Aye", "Yea"] o >>= parties)
-                         <*> (firstKey ["Nay", "No" ] o >>= parties)
-    parseJSON _          =   mzero
+                         <$> modifyFailure ("Invalid aye list: " ++) (firstKey ["Aye", "Yea"] o >>= parties)
+                         <*> modifyFailure ("Invalid nay list: " ++) (firstKey ["Nay", "No" ] o >>= parties)
+    parseJSON x          =   fail $ "invalid vote call: " ++ show x
 
 data BillResult
         = AgreedTo
@@ -341,7 +342,7 @@ instance FromJSON BillResult where
     parseJSON (String "Resolution of Ratification Rejected") =
         pure ResolutionOfRatificationRejected
     parseJSON (String "Veto Overridden") = pure VetoOverridden
-    parseJSON _ = mzero
+    parseJSON x = fail $ "invalid bill result: " ++ show x
 
 data RollCall
         = Call
@@ -355,11 +356,11 @@ data RollCall
 instance FromJSON RollCall where
     parseJSON (Object o) =   Call
                          <$> o .: "bill"
-                         <*> o .: "date"
+                         <*> modifyFailure ("Invalid date: " ++) (o .: "date")
                          <*> o .: "result"
                          <*> o .: "votes"
                          <*> o .: "category"
-    parseJSON _          =   mzero
+    parseJSON x          =   fail $ "invalid roll-call: " ++ show x
 
 instance Ord RollCall where
     compare = compare `on` (zonedTimeToUTC . callDate)
