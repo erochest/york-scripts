@@ -346,16 +346,18 @@ instance FromJSON BillResult where
 
 data RollCall
         = Call
-        { bill     :: !Bill
-        , callDate :: !ZonedTime
-        , result   :: !BillResult
-        , votes    :: !VoteCall
-        , category :: !Category
+        { bill        :: !Bill
+        , voteChamber :: !Chamber
+        , callDate    :: !ZonedTime
+        , result      :: !BillResult
+        , votes       :: !VoteCall
+        , category    :: !Category
         } deriving (Show, Typeable, Data)
 
 instance FromJSON RollCall where
     parseJSON (Object o) =   Call
                          <$> o .: "bill"
+                         <*> o .: "chamber"
                          <*> modifyFailure ("Invalid date: " ++) (o .: "date")
                          <*> o .: "result"
                          <*> o .: "votes"
@@ -378,6 +380,7 @@ type RollCallLast  = M.HashMap BillKey (Max RollCall)
 data BillSummary
         = BillSum
         { sumCongress :: !Int
+        , sumChamber  :: !Chamber
         , sumNumber   :: !Int
         , sumCategory :: !Category
         , sumInfo     :: !BillInfo
@@ -391,7 +394,7 @@ data BillSummary
 instance Csv.ToNamedRecord BillSummary where
     toNamedRecord BillSum{..} =
         Csv.namedRecord [ "congress" Csv..= sumCongress
-                        , "chamber"  Csv..= billChamber sumInfo
+                        , "chamber"  Csv..= sumChamber
                         , "type"     Csv..= sumInfo
                         , "bill#"    Csv..= sumNumber
                         , "category" Csv..= sumCategory

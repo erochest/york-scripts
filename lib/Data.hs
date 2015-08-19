@@ -28,7 +28,7 @@ filterCategories = filter ((`S.member` keepCategories) . category)
 
 summarizeCall :: RollCall -> BillSummary
 summarizeCall Call{..} =
-    BillSum (congress bill) (number bill) category (billInfo bill)
+    BillSum (congress bill) voteChamber (number bill) category (billInfo bill)
             (length rYes) (length rNos) (length dYes) (length dNos)
             (resultMetric result)
     where
