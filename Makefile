@@ -5,8 +5,8 @@ BILLS_OUTPUT=data/Congressional_Bills_2.csv
 ROLL_OUTPUT=data/roll-calls.csv
 
 QDIR=tmp-data
-QSESSION=108
-QBILL=1
+QSESSION=112
+QBILL=H.R. 1
 
 all: init data test output
 
@@ -33,19 +33,21 @@ build:
 	stack build --pedantic
 
 test:
-	stack test
+	stack build --test
 
 quarantine: build
-	stack install
-	-rm -rf tmp-data
-	for dn in `find roll-calls/$(QSESSION) -name [hs]$(QBILL)`; \
+	stack build --copy-bins
+	-rm -rf $(QDIR)
+	mkdir -p $(QDIR)
+	for dn in `ag --json -l '$(QBILL)\b' roll-calls/$(QSESSION)`; \
 		do \
 		echo $$dn; \
 		dest=$(QDIR)/$$dn; \
 		mkdir -p $$dest; \
 		cp -r $$dn $$dest; \
 		done
-	stack exec -- roll-calls --verbose $(QDIR)/roll-calls $(QDIR)/q.csv
+	stack exec -- york-scripts roll-call --verbose $(QDIR)/roll-calls $(QDIR)/q.csv
+	cat $(QDIR)/q.csv
 	tree $(QDIR)
 
 $(BILLS_OUTPUT): build $(BILLS_INPUT)
