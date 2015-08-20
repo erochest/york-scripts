@@ -6,7 +6,7 @@ ROLL_OUTPUT=data/roll-calls.csv
 
 QDIR=tmp-data
 QSESSION=112
-QBILL=H.R. 1
+QBILL=H.R.? 1
 
 all: init data test output
 
