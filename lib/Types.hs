@@ -3,11 +3,13 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 
 module Types where
 
 
+import qualified Data.ByteString.Char8 as C8
 import           Control.Applicative
 import           Control.Lens
 import           Data.Aeson
@@ -380,6 +382,7 @@ type RollCallLast  = M.HashMap BillKey (Max RollCall)
 data BillSummary
         = BillSum
         { sumCongress :: !Int
+        , sumDate     :: !ZonedTime
         , sumChamber  :: !Chamber
         , sumNumber   :: !Int
         , sumCategory :: !Category
@@ -389,11 +392,15 @@ data BillSummary
         , sumDYes     :: !Int
         , sumDNo      :: !Int
         , sumResult   :: !Int
-        } deriving (Show, Eq, Typeable, Data)
+        } deriving (Show, Typeable, Data)
+
+instance Csv.ToField ZonedTime where
+    toField = C8.pack . formatTime defaultTimeLocale rfc822DateFormat
 
 instance Csv.ToNamedRecord BillSummary where
     toNamedRecord BillSum{..} =
         Csv.namedRecord [ "congress" Csv..= sumCongress
+                        , "date"     Csv..= sumDate
                         , "chamber"  Csv..= sumChamber
                         , "type"     Csv..= sumInfo
                         , "bill#"    Csv..= sumNumber
@@ -407,6 +414,7 @@ instance Csv.ToNamedRecord BillSummary where
 
 instance Csv.DefaultOrdered BillSummary where
     headerOrder _ = Csv.header [ "congress"
+                               , "date"
                                , "chamber"
                                , "type"
                                , "bill#"

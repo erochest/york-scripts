@@ -28,8 +28,9 @@ filterCategories = filter ((`S.member` keepCategories) . category)
 
 summarizeCall :: RollCall -> BillSummary
 summarizeCall Call{..} =
-    BillSum (congress bill) voteChamber (number bill) category (billInfo bill)
-            (length rYes) (length rNos) (length dYes) (length dNos)
+    BillSum (congress bill) callDate voteChamber (number bill) category
+            (billInfo bill) (length rYes) (length rNos)
+            (length dYes) (length dNos)
             (resultMetric result)
     where
         (rYes, dYes) = L.partition (==R) $ ayes votes
@@ -38,10 +39,10 @@ summarizeCall Call{..} =
 indexByBill :: Foldable t => t RollCall -> RollCallIndex
 indexByBill = foldl' step M.empty
     where
-        step i rc = M.insertWith (++) (billKey $ bill rc) [rc] i
+        step i rc = M.insertWith (++) (rollCallKey rc) [rc] i
 
-billKey :: Bill -> BillKey
-billKey Bill{..} = (congress, number, billChamber billInfo)
+rollCallKey :: RollCall -> BillKey
+rollCallKey Call{..} = (congress bill, number bill, voteChamber)
 
 getLastRollCall :: RollCallIndex -> RollCallLast
 getLastRollCall = fmap (sconcat . fmap Max . NE.fromList) . M.filter (not . L.null)
